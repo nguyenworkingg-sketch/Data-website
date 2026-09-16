@@ -1,36 +1,71 @@
 # Data Website
 
-MVP cho hệ thống dữ liệu doanh nghiệp phục vụ research đầu tư.
+Hệ thống dữ liệu doanh nghiệp phục vụ research đầu tư.
 
 ## Workflow chính
 
-Excel của analyst → Nạp Excel → Mapping → Preview → Data Pool → Dashboard time series.
+Excel model → Google Sheets Input Hub → Data Pool → Dashboard.
 
-Website không coi Excel là database. Excel chỉ là nguồn nhập; dữ liệu sau khi chuẩn hóa được lưu vào Data Pool của ứng dụng.
+Excel vẫn là nơi analyst làm model. Google Sheets chỉ là lớp nhập liệu nhẹ: mỗi tháng copy dữ liệu mới từ model rồi paste vào Sheet. Website đọc Sheet và chuẩn hóa dữ liệu vào Data Pool.
 
-## Nạp Excel
+## Format Google Sheets chuẩn
 
-Hỗ trợ `.xlsx`, `.xls`, `.xlsm` và hai cấu trúc phổ biến:
-
-### Dạng ngang
+Sheet nên có đúng 5 cột:
 
 ```text
-Date | NT1 | NT2 | Vũng Áng | Cà Mau 1
-2026-01 | 100 | 200 | 300 | 150
-2026-02 | 110 | 190 | 320 | 170
+period | metric | series | value | unit
+2026-01 | Sản lượng điện | Nhơn Trạch 2 | 371.4 | triệu kWh
+2026-01 | Qc | Nhơn Trạch 2 | 328.9 | triệu kWh
+2026-01 | Doanh thu theo nhà máy | Nhơn Trạch 2 | 811.3 | tỷ đồng
 ```
 
-Chọn một metric, ví dụ `Sản lượng điện`. Mỗi cột còn lại trở thành một `series`.
-
-### Dạng dọc
+Khóa dữ liệu dùng để upsert:
 
 ```text
-Date | Metric | Series | Value
-2026-01 | Sản lượng điện | NT1 | 100
-2026-01 | Sản lượng điện | NT2 | 200
+company + metric + series + period
 ```
 
-Hệ thống đọc Date / Metric / Series / Value rồi chuẩn hóa trực tiếp vào Data Pool.
+Vì vậy đồng bộ lại cùng một tháng sẽ cập nhật số cũ thay vì tạo duplicate.
+
+## POW
+
+Repo có sẵn template:
+
+`templates/pow-input-template.csv`
+
+POW được seed sẵn các metric:
+
+- Sản lượng điện — cột chồng theo nhà máy
+- Qc — cột chồng theo nhà máy
+- Doanh thu theo nhà máy — cột chồng theo nhà máy
+
+Một metric có nhiều series sẽ tự hiển thị theo chart đã cấu hình. Metric một series có thể dùng line chart.
+
+## Cách nối Google Sheets với website
+
+Bản GitHub Pages hiện tại dùng phương án không cần backend:
+
+1. Tạo Google Sheet theo template.
+2. Vào `File → Share → Publish to web`.
+3. Publish đúng sheet input ở dạng CSV.
+4. Copy URL CSV.
+5. Vào `Google Sheets Hub` trên website.
+6. Chọn doanh nghiệp, dán URL và bấm `Lưu nguồn`.
+7. Mỗi khi cập nhật Sheet, bấm `Đồng bộ Sheet`.
+
+Website đọc CSV, preview 100 dòng đầu, tự tạo metric mới nếu cần và upsert observations vào Data Pool.
+
+## Lưu ý riêng tư
+
+`Publish to web` khiến sheet được publish qua URL. Không dùng phương án này cho dữ liệu mật hoặc dữ liệu nội bộ nhạy cảm.
+
+Nếu cần dữ liệu private hoàn toàn, adapter Google Sheets có thể được thay bằng:
+
+- Google Apps Script Web App có xác thực;
+- Supabase/PostgreSQL làm backend;
+- hoặc một backend riêng dùng Google Sheets API/OAuth.
+
+Dashboard và schema không cần viết lại khi đổi adapter.
 
 ## Schema MVP
 
@@ -47,6 +82,7 @@ metrics
 - name
 - unit
 - group
+- chart
 - order
 
 observations
@@ -57,31 +93,14 @@ observations
 - value
 ```
 
-## Logic chart
-
-- Metric chỉ có 1 series → line chart.
-- Metric có nhiều series → stacked column chart.
-- Ví dụ POW / `Sản lượng điện` có NT1, NT2, Vũng Áng... sẽ tự thành chart cột chồng theo tháng.
-
-## Luồng sử dụng đề xuất
-
-1. Vào `Cấu hình` để thêm doanh nghiệp.
-2. Thêm metric cần theo dõi, ví dụ `Sản lượng điện`.
-3. Vào `Nạp Excel`.
-4. Chọn file và sheet.
-5. Chọn dạng ngang hoặc dọc.
-6. Map cột thời gian / metric / series.
-7. Kiểm tra Preview.
-8. Bấm `Xác nhận import`.
-9. Vào `Doanh nghiệp` để xem chart.
-
 ## Phiên bản hiện tại
 
 - Frontend tĩnh HTML/CSS/JS, chạy trên GitHub Pages.
-- Đọc Excel trong trình duyệt bằng SheetJS.
+- Google Sheets CSV là nguồn nhập chính.
+- Nhập tay vẫn giữ làm phương án bổ sung.
 - Chart dùng Chart.js.
-- Data Pool hiện lưu bằng `localStorage` để kiểm thử workflow.
+- Data Pool hiện lưu bằng `localStorage` để kiểm thử UX.
 
 ## Bước tiếp theo
 
-Sau khi workflow Excel được chốt, chuyển Data Pool sang Supabase/PostgreSQL để dữ liệu tồn tại độc lập với browser, dùng trên nhiều máy, có backup và phân quyền admin.
+Sau khi Google Sheets workflow được chốt, chuyển Data Pool sang Supabase/PostgreSQL để dữ liệu dùng được trên nhiều máy, có backup, login và phân quyền admin.
