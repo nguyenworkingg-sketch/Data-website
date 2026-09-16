@@ -1,73 +1,33 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Investment Data Hub</title>
-  <meta name="description" content="Google Sheets input hub và dashboard dữ liệu doanh nghiệp." />
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
-  <script src="system.js" defer></script>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Investment Data Hub</title>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+<script src="snapshot.js" defer></script><script src="dashboard.js" defer></script>
 </head>
 <body>
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="brand"><div class="brand-mark">D</div><div><strong>Data Hub</strong><span>Investment research</span></div></div>
-    <nav class="nav">
-      <button class="nav-item active" data-view="dashboard">Tổng quan</button>
-      <button class="nav-item" data-view="company">Doanh nghiệp</button>
-      <button class="nav-item" data-view="hub">Google Sheets Hub</button>
-      <button class="nav-item" data-view="settings">Cấu trúc dữ liệu</button>
+    <div class="brand"><div class="brand-mark">F</div><div><strong>Investment Data Hub</strong><span>Google Sheets → Dashboard</span></div></div>
+    <p class="side-label">DOANH NGHIỆP</p>
+    <nav class="nav company-nav">
+      <button class="nav-item company-btn active" data-company="POW">POW <span>Điện</span></button>
+      <button class="nav-item company-btn" data-company="FPT">FPT <span>Công nghệ</span></button>
+      <button class="nav-item company-btn" data-company="REE">REE <span>Hạ tầng</span></button>
     </nav>
-    <div class="sidebar-foot"><div class="mini-label">DATA FLOW</div><p>Google Sheets của bạn → parser theo từng doanh nghiệp → Data Pool → Dashboard.</p></div>
+    <div class="sidebar-foot"><div class="mini-label">SOURCE OF TRUTH</div><p>Format Google Sheet của bạn được giữ nguyên. Mỗi doanh nghiệp có logic đọc riêng.</p><a id="sheet-link" class="source-link" target="_blank" rel="noopener">Mở Google Sheet ↗</a></div>
   </aside>
-
   <main class="main">
     <header class="topbar">
-      <div><p class="eyebrow">PROJECT WEBSITE DATA</p><h1 id="page-title">Tổng quan dữ liệu</h1></div>
-      <div class="top-actions"><select id="company-select"></select><button id="goto-hub" class="btn primary">Đồng bộ Sheet</button></div>
+      <div><p class="eyebrow">FINSUCCESS · RESEARCH DATA</p><h1 id="company-title"></h1><p id="company-subtitle" class="muted"></p></div>
+      <div id="source-state" class="source-state"></div>
     </header>
-
-    <section id="view-dashboard" class="view active-view">
-      <div id="summary-stats" class="stats-grid"></div>
-      <div class="panel">
-        <div class="panel-head"><div><p class="eyebrow">DATA POOL</p><h2>Doanh nghiệp đang theo dõi</h2></div></div>
-        <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Doanh nghiệp</th><th>Ngành</th><th>Chỉ tiêu</th><th>Series</th><th>Kỳ mới nhất</th><th>Điểm dữ liệu</th></tr></thead><tbody id="company-status-body"></tbody></table></div>
-      </div>
-      <div class="panel"><div class="panel-head"><div><p class="eyebrow">TIME SERIES</p><h2>Biểu đồ nhanh</h2></div><select id="dashboard-metric-select"></select></div><div class="chart-box tall"><canvas id="dashboard-chart"></canvas></div></div>
-    </section>
-
-    <section id="view-company" class="view">
-      <div class="company-head"><div><p class="eyebrow">DOANH NGHIỆP</p><h2 id="company-title"></h2><p id="company-subtitle" class="muted"></p></div><div class="segmented"><button class="segment active" data-range="all">Tất cả</button><button class="segment" data-range="24">24 kỳ</button><button class="segment" data-range="12">12 kỳ</button></div></div>
-      <div id="charts-grid" class="charts-grid"></div>
-    </section>
-
-    <section id="view-hub" class="view">
-      <div class="flow-strip"><span>1. Bạn cập nhật Google Sheet</span><b>→</b><span>2. Parser đọc đúng layout</span><b>→</b><span>3. Chuẩn hóa Data Pool</span><b>→</b><span>4. Dashboard</span></div>
-      <div class="panel">
-        <div class="panel-head"><div><p class="eyebrow">GOOGLE SHEETS INPUT HUB</p><h2>Không cần đổi format của bạn</h2><p class="muted">Mỗi doanh nghiệp có parser riêng. POW, FPT và REE có thể giữ layout hoàn toàn khác nhau.</p></div></div>
-        <div class="form-grid">
-          <label>Doanh nghiệp<select id="hub-company"></select></label>
-          <label>URL CSV publish của tab tương ứng<input id="sheet-csv-url" placeholder="Dán URL CSV của tab POW / FPT / REE" /></label>
-        </div>
-        <div class="callout"><strong>Parser đang dùng</strong><span id="parser-profile"></span></div>
-        <div class="actions-row"><button id="save-source" class="btn">Lưu nguồn</button><button id="sync-sheet" class="btn primary">Đồng bộ Sheet</button></div>
-        <div id="sync-status" class="save-status"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><div><p class="eyebrow">PREVIEW</p><h2>Dữ liệu sau khi parser chuẩn hóa</h2><p id="sheet-preview-summary" class="muted">Chưa đồng bộ.</p></div></div>
-        <div class="table-wrap"><table><thead><tr><th>Kỳ</th><th>Chỉ tiêu</th><th>Series</th><th>Giá trị</th><th>Đơn vị</th></tr></thead><tbody id="sheet-preview-body"></tbody></table></div>
-      </div>
-    </section>
-
-    <section id="view-settings" class="view">
-      <div class="panel">
-        <div class="panel-head"><div><p class="eyebrow">SCHEMA SAU CHUẨN HÓA</p><h2>Danh sách chỉ tiêu Data Pool</h2><p class="muted">Các chỉ tiêu được sinh tự động từ layout Sheet; không cần bạn tạo thủ công trước.</p></div></div>
-        <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Chỉ tiêu</th><th>Đơn vị</th><th>Nhóm</th><th>Chart</th><th>Series đã có</th></tr></thead><tbody id="metric-list-body"></tbody></table></div>
-      </div>
-    </section>
+    <section id="kpis" class="stats-grid"></section>
+    <section class="panel info-panel"><div><p class="eyebrow">KIẾN TRÚC</p><h2>Google Sheet là nơi nhập liệu, website là lớp trực quan hóa</h2></div><div class="flow-mini"><span>Google Sheet</span><b>→</b><span>Parser theo DN</span><b>→</b><span>Data Pool</span><b>→</b><span>Dashboard</span></div></section>
+    <section id="charts" class="charts-grid"></section>
+    <section class="panel footer-note"><strong>Trạng thái kết nối hiện tại:</strong> dashboard đang hiển thị snapshot được đọc trực tiếp từ Google Drive ngày 16/09/2026. Parser và layout đã bám theo đúng 3 tab POW / FPT / REE; bước live tự động chỉ còn là mở endpoint đọc Sheet cho website tĩnh.</section>
   </main>
 </div>
 </body>
