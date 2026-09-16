@@ -5,7 +5,7 @@
 <title>Investment Data Hub</title>
 <link rel="stylesheet" href="styles.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-<script src="snapshot.js" defer></script><script src="dashboard.js" defer></script>
+<script src="snapshot.js" defer></script><script src="live-config.js" defer></script><script src="dashboard.js" defer></script>
 </head>
 <body>
 <div class="app-shell">
@@ -25,12 +25,12 @@
       <div class="live-actions">
         <div id="source-state" class="source-state"></div>
         <button id="refresh-live" class="btn">↻ Làm mới dữ liệu</button>
-        <button id="connect-live" class="btn primary">Kết nối Google Sheet</button>
+        <button id="connect-live" class="btn primary">Đổi nguồn Google Sheet</button>
       </div>
     </header>
     <section id="kpis" class="stats-grid"></section>
     <section id="charts" class="charts-grid"></section>
-    <section class="panel footer-note" id="live-help"><strong>Chế độ dữ liệu:</strong> đang dùng snapshot dự phòng. Sau khi kết nối Apps Script, website sẽ tự tải dữ liệu mới khi mở trang và tự kiểm tra lại mỗi 60 giây.</section>
+    <section class="panel footer-note" id="live-help"><strong>Chế độ dữ liệu:</strong> website tự đọc Google Sheet khi mở trang và tự kiểm tra lại mỗi 60 giây. Nếu endpoint tạm lỗi, dashboard sẽ dùng snapshot dự phòng.</section>
   </main>
 </div>
 </body>
