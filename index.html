@@ -22,11 +22,15 @@
   <main class="main">
     <header class="topbar">
       <div><p class="eyebrow">FINSUCCESS · RESEARCH DATA</p><h1 id="company-title"></h1><p id="company-subtitle" class="muted"></p></div>
-      <div id="source-state" class="source-state"></div>
+      <div class="live-actions">
+        <div id="source-state" class="source-state"></div>
+        <button id="refresh-live" class="btn">↻ Làm mới dữ liệu</button>
+        <button id="connect-live" class="btn primary">Kết nối Google Sheet</button>
+      </div>
     </header>
     <section id="kpis" class="stats-grid"></section>
     <section id="charts" class="charts-grid"></section>
-    <section class="panel footer-note"><strong>Trạng thái kết nối hiện tại:</strong> dashboard đang hiển thị snapshot được đọc trực tiếp từ Google Drive ngày 16/09/2026. Parser và layout đã bám theo đúng 3 tab POW / FPT / REE; bước live tự động chỉ còn là mở endpoint đọc Sheet cho website tĩnh.</section>
+    <section class="panel footer-note" id="live-help"><strong>Chế độ dữ liệu:</strong> đang dùng snapshot dự phòng. Sau khi kết nối Apps Script, website sẽ tự tải dữ liệu mới khi mở trang và tự kiểm tra lại mỗi 60 giây.</section>
   </main>
 </div>
 </body>
