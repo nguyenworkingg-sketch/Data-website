@@ -2,30 +2,37 @@
 
 MVP cho hệ thống dữ liệu doanh nghiệp phục vụ research đầu tư.
 
-## Mục tiêu
+## Workflow chính
 
-- Nhập dữ liệu doanh nghiệp theo tháng bằng bảng dạng spreadsheet.
-- Cho phép paste trực tiếp từ Excel.
-- Lưu dữ liệu và tự động trực quan hóa thành biểu đồ time series.
-- Quản lý nhiều doanh nghiệp và nhiều chỉ tiêu mà không phải sửa HTML theo từng công ty.
+Excel của analyst → Nạp Excel → Mapping → Preview → Data Pool → Dashboard time series.
 
-## Phiên bản hiện tại
+Website không coi Excel là database. Excel chỉ là nguồn nhập; dữ liệu sau khi chuẩn hóa được lưu vào Data Pool của ứng dụng.
 
-- Frontend tĩnh HTML/CSS/JS, tương thích GitHub Pages.
-- FPT được tạo sẵn làm template chỉ tiêu, chưa có số liệu giả.
-- Dữ liệu người dùng đang được lưu bằng `localStorage` của trình duyệt để kiểm thử UX.
-- Chart sử dụng Chart.js qua CDN.
+## Nạp Excel
 
-## Luồng sử dụng
+Hỗ trợ `.xlsx`, `.xls`, `.xlsm` và hai cấu trúc phổ biến:
 
-1. Mở **Nhập dữ liệu**.
-2. Chọn doanh nghiệp và năm.
-3. Nhập từng ô hoặc paste cả vùng dữ liệu từ Excel.
-4. Bấm **Lưu dữ liệu**.
-5. Vào **Doanh nghiệp** để xem time series từng chỉ tiêu.
-6. Vào **Quản lý chỉ tiêu** để thêm doanh nghiệp hoặc metric mới.
+### Dạng ngang
 
-## Kiến trúc dữ liệu MVP
+```text
+Date | NT1 | NT2 | Vũng Áng | Cà Mau 1
+2026-01 | 100 | 200 | 300 | 150
+2026-02 | 110 | 190 | 320 | 170
+```
+
+Chọn một metric, ví dụ `Sản lượng điện`. Mỗi cột còn lại trở thành một `series`.
+
+### Dạng dọc
+
+```text
+Date | Metric | Series | Value
+2026-01 | Sản lượng điện | NT1 | 100
+2026-01 | Sản lượng điện | NT2 | 200
+```
+
+Hệ thống đọc Date / Metric / Series / Value rồi chuẩn hóa trực tiếp vào Data Pool.
+
+## Schema MVP
 
 ```text
 companies
@@ -43,18 +50,38 @@ metrics
 - order
 
 observations
+- companyId
 - metricId
+- series
 - period (YYYY-MM)
 - value
 ```
 
+## Logic chart
+
+- Metric chỉ có 1 series → line chart.
+- Metric có nhiều series → stacked column chart.
+- Ví dụ POW / `Sản lượng điện` có NT1, NT2, Vũng Áng... sẽ tự thành chart cột chồng theo tháng.
+
+## Luồng sử dụng đề xuất
+
+1. Vào `Cấu hình` để thêm doanh nghiệp.
+2. Thêm metric cần theo dõi, ví dụ `Sản lượng điện`.
+3. Vào `Nạp Excel`.
+4. Chọn file và sheet.
+5. Chọn dạng ngang hoặc dọc.
+6. Map cột thời gian / metric / series.
+7. Kiểm tra Preview.
+8. Bấm `Xác nhận import`.
+9. Vào `Doanh nghiệp` để xem chart.
+
+## Phiên bản hiện tại
+
+- Frontend tĩnh HTML/CSS/JS, chạy trên GitHub Pages.
+- Đọc Excel trong trình duyệt bằng SheetJS.
+- Chart dùng Chart.js.
+- Data Pool hiện lưu bằng `localStorage` để kiểm thử workflow.
+
 ## Bước tiếp theo
 
-Sau khi chốt UX, thay lớp `localStorage` bằng Supabase/PostgreSQL để:
-
-- dữ liệu tồn tại độc lập với trình duyệt;
-- dùng được trên nhiều máy;
-- backup/versioning;
-- đăng nhập admin;
-- phân quyền nhập và xem dữ liệu;
-- import/export dữ liệu thuận tiện hơn.
+Sau khi workflow Excel được chốt, chuyển Data Pool sang Supabase/PostgreSQL để dữ liệu tồn tại độc lập với browser, dùng trên nhiều máy, có backup và phân quyền admin.
