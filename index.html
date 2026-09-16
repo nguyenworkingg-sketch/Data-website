@@ -5,19 +5,23 @@
 <title>Investment Data Hub</title>
 <link rel="stylesheet" href="styles.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-<script src="snapshot.js" defer></script><script src="live-config.js" defer></script><script src="dashboard.js" defer></script>
+<script src="snapshot.js" defer></script>
+<script src="supabase-config.js" defer></script>
+<script src="dashboard.js" defer></script>
+<script src="supabase-adapter.js" defer></script>
+<script src="supabase-controls.js" defer></script>
 </head>
 <body>
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="brand"><div class="brand-mark">F</div><div><strong>Investment Data Hub</strong><span>Google Sheets → Dashboard</span></div></div>
+    <div class="brand"><div class="brand-mark">F</div><div><strong>Investment Data Hub</strong><span>Google Sheets → Supabase → Dashboard</span></div></div>
     <p class="side-label">DOANH NGHIỆP</p>
     <nav class="nav company-nav">
       <button class="nav-item company-btn active" data-company="POW">POW <span>Điện</span></button>
       <button class="nav-item company-btn" data-company="FPT">FPT <span>Công nghệ</span></button>
       <button class="nav-item company-btn" data-company="REE">REE <span>Hạ tầng</span></button>
     </nav>
-    <div class="sidebar-foot"><div class="mini-label">SOURCE OF TRUTH</div><p>Format Google Sheet của bạn được giữ nguyên. Mỗi doanh nghiệp có logic đọc riêng.</p><a id="sheet-link" class="source-link" target="_blank" rel="noopener">Mở Google Sheet ↗</a></div>
+    <div class="sidebar-foot"><div class="mini-label">SOURCE OF TRUTH</div><p>Google Sheet vẫn là nơi nhập liệu. Supabase giữ bản live để dashboard đọc ổn định trên mọi thiết bị.</p><a id="sheet-link" class="source-link" target="_blank" rel="noopener">Mở Google Sheet ↗</a></div>
   </aside>
   <main class="main">
     <header class="topbar">
@@ -30,7 +34,7 @@
     </header>
     <section id="kpis" class="stats-grid"></section>
     <section id="charts" class="charts-grid"></section>
-    <section class="panel footer-note" id="live-help"><strong>Chế độ dữ liệu:</strong> website tự đọc Google Sheet khi mở trang và tự kiểm tra lại mỗi 60 giây. Nếu endpoint tạm lỗi, dashboard sẽ dùng snapshot dự phòng.</section>
+    <section class="panel footer-note" id="live-help"><strong>Nguồn dữ liệu:</strong> Google Sheet → Supabase tự đồng bộ mỗi 5 phút → Dashboard.</section>
   </main>
 </div>
 </body>
