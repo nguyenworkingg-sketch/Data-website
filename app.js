@@ -1,292 +1,40 @@
-const STORAGE_KEY = 'investment_data_hub_v1';
-
-const seedState = {
-  companies: [
-    { id: 'fpt', ticker: 'FPT', name: 'FPT Corporation', sector: 'Công nghệ thông tin' }
-  ],
-  metrics: [
-    { id: 'fpt_revenue', companyId: 'fpt', name: 'Doanh thu', unit: 'tỷ đồng', group: 'Tài chính', order: 1 },
-    { id: 'fpt_pat', companyId: 'fpt', name: 'Lợi nhuận sau thuế', unit: 'tỷ đồng', group: 'Tài chính', order: 2 },
-    { id: 'fpt_overseas_it', companyId: 'fpt', name: 'Doanh thu CNTT nước ngoài', unit: 'tỷ đồng', group: 'CNTT nước ngoài', order: 3 },
-    { id: 'fpt_new_signing', companyId: 'fpt', name: 'Ký mới CNTT nước ngoài', unit: 'tỷ đồng', group: 'CNTT nước ngoài', order: 4 },
-    { id: 'fpt_japan', companyId: 'fpt', name: 'Doanh thu Nhật Bản', unit: 'tỷ đồng', group: 'CNTT nước ngoài', order: 5 },
-    { id: 'fpt_us', companyId: 'fpt', name: 'Doanh thu Mỹ', unit: 'tỷ đồng', group: 'CNTT nước ngoài', order: 6 },
-    { id: 'fpt_education', companyId: 'fpt', name: 'Doanh thu giáo dục', unit: 'tỷ đồng', group: 'Giáo dục', order: 7 },
-    { id: 'fpt_telecom', companyId: 'fpt', name: 'Doanh thu viễn thông', unit: 'tỷ đồng', group: 'Viễn thông', order: 8 }
-  ],
-  observations: []
-};
-
-let state = loadState();
-let activeCompanyId = state.companies[0]?.id || null;
-let activeRange = 'all';
-let dashboardChart = null;
-let companyCharts = [];
-
-const $ = (s) => document.querySelector(s);
-const $$ = (s) => Array.from(document.querySelectorAll(s));
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return structuredClone(seedState);
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.companies) || !Array.isArray(parsed.metrics) || !Array.isArray(parsed.observations)) throw new Error('invalid');
-    return parsed;
-  } catch {
-    return structuredClone(seedState);
-  }
-}
-
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function slugify(text) {
-  return String(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
-}
-
-function fmtNumber(n) {
-  if (n === null || n === undefined || n === '') return '—';
-  return Number(n).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-}
-
-function monthLabel(period) {
-  const [y,m] = period.split('-');
-  return `T${Number(m)}/${y}`;
-}
-
-function companyMetrics(companyId) {
-  return state.metrics.filter(m => m.companyId === companyId).sort((a,b)=>(a.order||0)-(b.order||0));
-}
-
-function observationsForMetric(metricId) {
-  return state.observations.filter(o => o.metricId === metricId).sort((a,b)=>a.period.localeCompare(b.period));
-}
-
-function latestPeriodForCompany(companyId) {
-  const ids = new Set(companyMetrics(companyId).map(m=>m.id));
-  const periods = state.observations.filter(o=>ids.has(o.metricId)).map(o=>o.period).sort();
-  return periods.at(-1) || null;
-}
-
-function setView(name) {
-  $$('.view').forEach(v=>v.classList.remove('active-view'));
-  $(`#view-${name}`).classList.add('active-view');
-  $$('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
-  const titles = { dashboard:'Tổng quan dữ liệu', company:'Dữ liệu doanh nghiệp', input:'Nhập dữ liệu', settings:'Quản lý hệ thống' };
-  $('#page-title').textContent = titles[name] || 'Data Hub';
-  if (name==='company') renderCompanyView();
-  if (name==='input') renderInputView();
-  if (name==='settings') renderSettings();
-}
-
-function refreshCompanySelectors() {
-  const opts = state.companies.map(c=>`<option value="${c.id}">${c.ticker} — ${c.name}</option>`).join('');
-  ['company-select','input-company-select','metric-company-select'].forEach(id=>{
-    const el=$(`#${id}`); if (!el) return;
-    const old=el.value;
-    el.innerHTML=opts;
-    el.value = state.companies.some(c=>c.id===old) ? old : (activeCompanyId || state.companies[0]?.id || '');
-  });
-}
-
-function renderDashboard() {
-  refreshCompanySelectors();
-  const totalPoints = state.observations.length;
-  const latestPeriods = state.companies.map(c=>latestPeriodForCompany(c.id)).filter(Boolean).sort();
-  const latest = latestPeriods.at(-1);
-  $('#summary-stats').innerHTML = [
-    ['Doanh nghiệp', state.companies.length],
-    ['Chỉ tiêu', state.metrics.length],
-    ['Điểm dữ liệu', totalPoints],
-    ['Kỳ mới nhất', latest ? monthLabel(latest) : 'Chưa có']
-  ].map(([label,val])=>`<div class="stat-card"><span>${label}</span><strong>${val}</strong></div>`).join('');
-
-  $('#company-status-body').innerHTML = state.companies.map(c=>{
-    const metrics=companyMetrics(c.id); const ids=new Set(metrics.map(m=>m.id));
-    const points=state.observations.filter(o=>ids.has(o.metricId)).length;
-    const latestP=latestPeriodForCompany(c.id);
-    return `<tr><td><strong>${c.ticker}</strong></td><td>${c.name}</td><td>${c.sector||'—'}</td><td>${metrics.length}</td><td>${latestP?monthLabel(latestP):'Chưa có'}</td><td>${points}</td></tr>`;
-  }).join('');
-
-  const metrics=companyMetrics(activeCompanyId);
-  $('#dashboard-metric-select').innerHTML=metrics.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
-  renderDashboardChart();
-}
-
-function renderDashboardChart() {
-  const select=$('#dashboard-metric-select');
-  const metric=state.metrics.find(m=>m.id===select.value) || companyMetrics(activeCompanyId)[0];
-  if (dashboardChart) { dashboardChart.destroy(); dashboardChart=null; }
-  const ctx=$('#dashboard-chart');
-  if (!metric) return;
-  const rows=observationsForMetric(metric.id);
-  dashboardChart = new Chart(ctx, {
-    type:'line',
-    data:{labels:rows.map(r=>monthLabel(r.period)),datasets:[{label:`${metric.name} (${metric.unit||''})`,data:rows.map(r=>r.value),borderWidth:2,tension:.25,pointRadius:3}]},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>`${metric.name}: ${fmtNumber(c.raw)} ${metric.unit||''}`}}},scales:{x:{grid:{display:false}},y:{beginAtZero:false}}}
-  });
-}
-
-function getRangedRows(rows) {
-  if (activeRange==='all') return rows;
-  return rows.slice(-Number(activeRange));
-}
-
-function renderCompanyView() {
-  const company=state.companies.find(c=>c.id===activeCompanyId);
-  if (!company) return;
-  $('#company-title').textContent=`${company.ticker} — ${company.name}`;
-  const lp=latestPeriodForCompany(company.id);
-  $('#company-subtitle').textContent=`${company.sector||'Chưa phân ngành'} · ${companyMetrics(company.id).length} chỉ tiêu · Kỳ mới nhất: ${lp?monthLabel(lp):'chưa có dữ liệu'}`;
-  companyCharts.forEach(c=>c.destroy()); companyCharts=[];
-  const grid=$('#charts-grid'); grid.innerHTML='';
-  const metrics=companyMetrics(company.id);
-  if (!metrics.length) { grid.innerHTML='<div class="panel"><p class="muted">Chưa có chỉ tiêu cho doanh nghiệp này.</p></div>'; return; }
-  metrics.forEach(metric=>{
-    const card=document.createElement('div'); card.className='chart-card';
-    card.innerHTML=`<div class="chart-title"><div><h3>${metric.name}</h3><span>${metric.group||'Chỉ tiêu'} · ${metric.unit||'Không đơn vị'}</span></div></div><div class="chart-box"><canvas></canvas></div>`;
-    grid.appendChild(card);
-    const rows=getRangedRows(observationsForMetric(metric.id));
-    const chart=new Chart(card.querySelector('canvas'),{
-      type:'line',data:{labels:rows.map(r=>monthLabel(r.period)),datasets:[{data:rows.map(r=>r.value),label:metric.name,borderWidth:2,tension:.25,pointRadius:2.5,spanGaps:true}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>`${fmtNumber(c.raw)} ${metric.unit||''}`}}},scales:{x:{grid:{display:false}},y:{beginAtZero:false}}}
-    });
-    companyCharts.push(chart);
-  });
-}
-
-function yearsForInput() {
-  const now=new Date().getFullYear();
-  const years=[]; for(let y=2020;y<=now+1;y++) years.push(y); return years.reverse();
-}
-
-function renderInputView() {
-  refreshCompanySelectors();
-  const yearSel=$('#input-year-select');
-  const old=yearSel.value;
-  yearSel.innerHTML=yearsForInput().map(y=>`<option value="${y}">${y}</option>`).join('');
-  yearSel.value=old || String(new Date().getFullYear());
-  renderInputTable();
-}
-
-function renderInputTable() {
-  const companyId=$('#input-company-select').value || activeCompanyId;
-  const year=Number($('#input-year-select').value || new Date().getFullYear());
-  const metrics=companyMetrics(companyId);
-  $('#input-head-row').innerHTML=`<tr><th>Chỉ tiêu</th>${Array.from({length:12},(_,i)=>`<th>T${i+1}</th>`).join('')}</tr>`;
-  $('#input-body').innerHTML=metrics.map(metric=>{
-    const cells=Array.from({length:12},(_,i)=>{
-      const period=`${year}-${String(i+1).padStart(2,'0')}`;
-      const obs=state.observations.find(o=>o.metricId===metric.id && o.period===period);
-      return `<td class="data-cell"><input inputmode="decimal" data-metric="${metric.id}" data-period="${period}" value="${obs?.value ?? ''}" aria-label="${metric.name} ${period}" /></td>`;
-    }).join('');
-    return `<tr><td><strong>${metric.name}</strong><div class="muted">${metric.unit||''}</div></td>${cells}</tr>`;
-  }).join('');
-  attachPasteHandling();
-}
-
-function attachPasteHandling() {
-  const inputs=$$('#input-body .data-cell input');
-  inputs.forEach(input=>input.addEventListener('paste', e=>{
-    const text=e.clipboardData?.getData('text/plain');
-    if (!text || (!text.includes('\t') && !text.includes('\n'))) return;
-    e.preventDefault();
-    const rows=text.trim().split(/\r?\n/).map(r=>r.split('\t'));
-    const allRows=$$('#input-body tr');
-    const startCell=input.closest('td');
-    const startRow=input.closest('tr');
-    const r0=allRows.indexOf(startRow);
-    const c0=Array.from(startRow.children).indexOf(startCell)-1;
-    rows.forEach((rowVals,ri)=>rowVals.forEach((val,ci)=>{
-      const row=allRows[r0+ri]; if(!row) return;
-      const target=row.querySelectorAll('.data-cell input')[c0+ci]; if(!target) return;
-      target.value=normalizeInput(val);
-    }));
-  }));
-}
-
-function normalizeInput(v) {
-  let s=String(v).trim().replace(/\s/g,'');
-  if (!s) return '';
-  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s=s.replace(/\./g,'').replace(',','.');
-  else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s=s.replace(/,/g,'');
-  else if (s.includes(',') && !s.includes('.')) s=s.replace(',','.');
-  const n=Number(s); return Number.isFinite(n) ? String(n) : '';
-}
-
-function saveInputData() {
-  const inputs=$$('#input-body .data-cell input');
-  inputs.forEach(input=>{
-    const value=normalizeInput(input.value);
-    const idx=state.observations.findIndex(o=>o.metricId===input.dataset.metric && o.period===input.dataset.period);
-    if (value==='') {
-      if (idx>=0) state.observations.splice(idx,1);
-      return;
-    }
-    const item={metricId:input.dataset.metric,period:input.dataset.period,value:Number(value)};
-    if (idx>=0) state.observations[idx]=item; else state.observations.push(item);
-  });
-  saveState();
-  $('#save-status').textContent='Đã lưu dữ liệu. Biểu đồ đã được cập nhật.';
-  setTimeout(()=>$('#save-status').textContent='',2500);
-  renderDashboard();
-}
-
-function renderSettings() {
-  refreshCompanySelectors();
-  $('#metric-list-body').innerHTML=state.metrics.slice().sort((a,b)=>{
-    const ca=state.companies.find(c=>c.id===a.companyId)?.ticker||'';
-    const cb=state.companies.find(c=>c.id===b.companyId)?.ticker||'';
-    return ca.localeCompare(cb)||(a.order||0)-(b.order||0);
-  }).map(m=>{
-    const c=state.companies.find(c=>c.id===m.companyId);
-    return `<tr><td><strong>${c?.ticker||'—'}</strong></td><td>${m.name}</td><td>${m.unit||'—'}</td><td>${m.group||'—'}</td></tr>`;
-  }).join('');
-}
-
-function addCompany(e) {
-  e.preventDefault();
-  const ticker=$('#new-ticker').value.trim().toUpperCase();
-  const name=$('#new-company-name').value.trim();
-  const sector=$('#new-sector').value.trim();
-  if (!ticker || !name) return;
-  if (state.companies.some(c=>c.ticker===ticker)) { alert('Mã doanh nghiệp đã tồn tại.'); return; }
-  let id=slugify(ticker); let n=2; while(state.companies.some(c=>c.id===id)) id=`${slugify(ticker)}_${n++}`;
-  state.companies.push({id,ticker,name,sector}); saveState();
-  e.target.reset(); activeCompanyId=id; refreshCompanySelectors(); renderDashboard(); renderSettings();
-}
-
-function addMetric(e) {
-  e.preventDefault();
-  const companyId=$('#metric-company-select').value;
-  const name=$('#new-metric-name').value.trim();
-  const unit=$('#new-metric-unit').value.trim();
-  const group=$('#new-metric-group').value.trim();
-  if (!companyId || !name) return;
-  const metrics=companyMetrics(companyId);
-  let id=`${companyId}_${slugify(name)}`; let n=2; while(state.metrics.some(m=>m.id===id)) id=`${companyId}_${slugify(name)}_${n++}`;
-  state.metrics.push({id,companyId,name,unit,group,order:metrics.length+1}); saveState();
-  e.target.reset(); $('#metric-company-select').value=companyId; renderSettings(); renderDashboard();
-}
-
-function init() {
-  refreshCompanySelectors();
-  renderDashboard();
-  renderInputView();
-  renderSettings();
-
-  $$('.nav-item').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
-  $('#goto-input').addEventListener('click',()=>setView('input'));
-  $('#company-select').addEventListener('change',e=>{ activeCompanyId=e.target.value; $('#input-company-select').value=activeCompanyId; renderDashboard(); if($('#view-company').classList.contains('active-view')) renderCompanyView(); });
-  $('#dashboard-metric-select').addEventListener('change',renderDashboardChart);
-  $('#input-company-select').addEventListener('change',e=>{ activeCompanyId=e.target.value; $('#company-select').value=activeCompanyId; renderInputTable(); });
-  $('#input-year-select').addEventListener('change',renderInputTable);
-  $('#save-data').addEventListener('click',saveInputData);
-  $('#company-form').addEventListener('submit',addCompany);
-  $('#metric-form').addEventListener('submit',addMetric);
-  $$('.segment').forEach(b=>b.addEventListener('click',()=>{ $$('.segment').forEach(x=>x.classList.remove('active')); b.classList.add('active'); activeRange=b.dataset.range; renderCompanyView(); }));
-}
-
-document.addEventListener('DOMContentLoaded', init);
+const STORAGE_KEY='investment_data_hub_v2';
+const seedState={companies:[{id:'fpt',ticker:'FPT',name:'FPT Corporation',sector:'Công nghệ thông tin'}],metrics:[{id:'fpt_revenue',companyId:'fpt',name:'Doanh thu',unit:'tỷ đồng',group:'Tài chính',order:1},{id:'fpt_pat',companyId:'fpt',name:'Lợi nhuận sau thuế',unit:'tỷ đồng',group:'Tài chính',order:2},{id:'fpt_overseas_it',companyId:'fpt',name:'Doanh thu CNTT nước ngoài',unit:'tỷ đồng',group:'CNTT nước ngoài',order:3}],observations:[]};
+let state=loadState(),activeCompanyId=state.companies[0]?.id||null,activeRange='all',dashboardChart=null,companyCharts=[];
+let workbook=null,rawSheetRows=[],previewRows=[];
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+function loadState(){try{const r=localStorage.getItem(STORAGE_KEY);if(!r)return structuredClone(seedState);const p=JSON.parse(r);if(!p.companies||!p.metrics||!p.observations)throw 0;return p}catch{return structuredClone(seedState)}}
+function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
+function slugify(t){return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')}
+function fmtNumber(n){return n==null?'—':Number(n).toLocaleString('vi-VN',{maximumFractionDigits:2})}
+function monthLabel(p){const[y,m]=p.split('-');return `T${Number(m)}/${y}`}
+function companyMetrics(id){return state.metrics.filter(m=>m.companyId===id).sort((a,b)=>(a.order||0)-(b.order||0))}
+function metricSeries(metricId){return [...new Set(state.observations.filter(o=>o.metricId===metricId).map(o=>o.series||'Tổng'))]}
+function metricRows(metricId){return state.observations.filter(o=>o.metricId===metricId).sort((a,b)=>a.period.localeCompare(b.period))}
+function latestPeriodForCompany(id){const ids=new Set(companyMetrics(id).map(m=>m.id));return state.observations.filter(o=>ids.has(o.metricId)).map(o=>o.period).sort().at(-1)||null}
+function selectors(){const opts=state.companies.map(c=>`<option value="${c.id}">${c.ticker} — ${c.name}</option>`).join('');['company-select','input-company-select','metric-company-select','import-company'].forEach(id=>{const el=$('#'+id);if(!el)return;const old=el.value;el.innerHTML=opts;el.value=state.companies.some(c=>c.id===old)?old:(activeCompanyId||state.companies[0]?.id||'')})}
+function setView(name){$$('.view').forEach(v=>v.classList.remove('active-view'));$('#view-'+name)?.classList.add('active-view');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===name));const t={dashboard:'Tổng quan dữ liệu',company:'Dữ liệu doanh nghiệp',import:'Nạp Excel vào Data Pool',manual:'Nhập dữ liệu thủ công',settings:'Cấu hình hệ thống'};$('#page-title').textContent=t[name]||'Data Hub';if(name==='dashboard')renderDashboard();if(name==='company')renderCompany();if(name==='manual')renderManual();if(name==='settings')renderSettings();if(name==='import')renderImportSelectors()}
+function renderDashboard(){selectors();const latest=state.companies.map(c=>latestPeriodForCompany(c.id)).filter(Boolean).sort().at(-1);$('#summary-stats').innerHTML=[['Doanh nghiệp',state.companies.length],['Chỉ tiêu',state.metrics.length],['Series',new Set(state.observations.map(o=>`${o.metricId}|${o.series||'Tổng'}`)).size],['Kỳ mới nhất',latest?monthLabel(latest):'Chưa có']].map(([a,b])=>`<div class="stat-card"><span>${a}</span><strong>${b}</strong></div>`).join('');$('#company-status-body').innerHTML=state.companies.map(c=>{const ms=companyMetrics(c.id),ids=new Set(ms.map(m=>m.id)),obs=state.observations.filter(o=>ids.has(o.metricId)),series=new Set(obs.map(o=>`${o.metricId}|${o.series||'Tổng'}`)).size,lp=latestPeriodForCompany(c.id);return `<tr><td><strong>${c.ticker}</strong></td><td>${c.name}</td><td>${c.sector||'—'}</td><td>${ms.length}</td><td>${series}</td><td>${lp?monthLabel(lp):'Chưa có'}</td><td>${obs.length}</td></tr>`}).join('');const ms=companyMetrics(activeCompanyId);$('#dashboard-metric-select').innerHTML=ms.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');renderQuickChart()}
+function chartData(metric,range='all'){let rows=metricRows(metric.id);const periods=[...new Set(rows.map(r=>r.period))].sort();const use=range==='all'?periods:periods.slice(-Number(range));const series=metricSeries(metric.id);const datasets=series.map(s=>({label:s,data:use.map(p=>rows.find(r=>r.period===p&&(r.series||'Tổng')===s)?.value??null),borderWidth:2,tension:.25,pointRadius:2.5,stack:series.length>1?'total':undefined}));return{periods:use,series,datasets}}
+function buildChart(canvas,metric,range='all'){const d=chartData(metric,range),multi=d.series.length>1;return new Chart(canvas,{type:multi?'bar':'line',data:{labels:d.periods.map(monthLabel),datasets:d.datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:multi,position:'bottom'},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmtNumber(c.raw)} ${metric.unit||''}`}}},scales:{x:{stacked:multi,grid:{display:false}},y:{stacked:multi,beginAtZero:multi}}}})}
+function renderQuickChart(){const metric=state.metrics.find(m=>m.id===$('#dashboard-metric-select').value)||companyMetrics(activeCompanyId)[0];if(dashboardChart)dashboardChart.destroy();if(metric)dashboardChart=buildChart($('#dashboard-chart'),metric)}
+function renderCompany(){const c=state.companies.find(x=>x.id===activeCompanyId);if(!c)return;$('#company-title').textContent=`${c.ticker} — ${c.name}`;const lp=latestPeriodForCompany(c.id);$('#company-subtitle').textContent=`${c.sector||'Chưa phân ngành'} · ${companyMetrics(c.id).length} chỉ tiêu · Kỳ mới nhất: ${lp?monthLabel(lp):'chưa có'}`;companyCharts.forEach(x=>x.destroy());companyCharts=[];const g=$('#charts-grid');g.innerHTML='';companyMetrics(c.id).forEach(m=>{const card=document.createElement('div');card.className='chart-card';const series=metricSeries(m.id);card.innerHTML=`<div class="chart-title"><div><h3>${m.name}</h3><span>${m.group||'Chỉ tiêu'} · ${m.unit||'Không đơn vị'} · ${series.length>1?`${series.length} series · cột chồng`:'time series'}</span></div></div><div class="chart-box"><canvas></canvas></div>`;g.appendChild(card);companyCharts.push(buildChart(card.querySelector('canvas'),m,activeRange))})}
+function years(){const y=new Date().getFullYear(),a=[];for(let i=2020;i<=y+1;i++)a.push(i);return a.reverse()}
+function renderManual(){selectors();const ys=$('#input-year-select'),old=ys.value;ys.innerHTML=years().map(y=>`<option>${y}</option>`).join('');ys.value=old||String(new Date().getFullYear());renderManualTable()}
+function renderManualTable(){const cid=$('#input-company-select').value||activeCompanyId,y=$('#input-year-select').value,ms=companyMetrics(cid);$('#input-head-row').innerHTML=`<tr><th>Chỉ tiêu</th>${Array.from({length:12},(_,i)=>`<th>T${i+1}</th>`).join('')}</tr>`;$('#input-body').innerHTML=ms.map(m=>`<tr><td><strong>${m.name}</strong><div class="muted">${m.unit||''}</div></td>${Array.from({length:12},(_,i)=>{const p=`${y}-${String(i+1).padStart(2,'0')}`,o=state.observations.find(o=>o.metricId===m.id&&o.period===p&&(o.series||'Tổng')==='Tổng');return `<td class="data-cell"><input data-metric="${m.id}" data-period="${p}" value="${o?.value??''}"/></td>`}).join('')}</tr>`).join('')}
+function saveManual(){ $$('#input-body input').forEach(i=>{const v=Number(String(i.value).replace(',','.')),idx=state.observations.findIndex(o=>o.metricId===i.dataset.metric&&o.period===i.dataset.period&&(o.series||'Tổng')==='Tổng');if(i.value.trim()===''){if(idx>=0)state.observations.splice(idx,1)}else if(Number.isFinite(v)){const row={companyId:state.metrics.find(m=>m.id===i.dataset.metric)?.companyId,metricId:i.dataset.metric,series:'Tổng',period:i.dataset.period,value:v};idx>=0?state.observations[idx]=row:state.observations.push(row)}});saveState();$('#save-status').textContent='Đã lưu dữ liệu thủ công.';renderDashboard()}
+function renderSettings(){selectors();$('#metric-list-body').innerHTML=state.metrics.map(m=>{const c=state.companies.find(c=>c.id===m.companyId);return `<tr><td><strong>${c?.ticker||'—'}</strong></td><td>${m.name}</td><td>${m.unit||'—'}</td><td>${m.group||'—'}</td><td>${metricSeries(m.id).join(', ')||'—'}</td></tr>`}).join('')}
+function addCompany(e){e.preventDefault();const ticker=$('#new-ticker').value.trim().toUpperCase(),name=$('#new-company-name').value.trim(),sector=$('#new-sector').value.trim();if(!ticker||!name)return;if(state.companies.some(c=>c.ticker===ticker))return alert('Mã đã tồn tại');let id=slugify(ticker);state.companies.push({id,ticker,name,sector});saveState();e.target.reset();activeCompanyId=id;selectors();renderSettings()}
+function addMetric(e){e.preventDefault();const companyId=$('#metric-company-select').value,name=$('#new-metric-name').value.trim(),unit=$('#new-metric-unit').value.trim(),group=$('#new-metric-group').value.trim();if(!companyId||!name)return;let id=`${companyId}_${slugify(name)}`,n=2;while(state.metrics.some(m=>m.id===id))id=`${companyId}_${slugify(name)}_${n++}`;state.metrics.push({id,companyId,name,unit,group,order:companyMetrics(companyId).length+1});saveState();e.target.reset();renderSettings()}
+function renderImportSelectors(){selectors();refreshMetricSelect();if(workbook)updateSheetView()}
+function refreshMetricSelect(){const cid=$('#import-company')?.value||activeCompanyId,el=$('#wide-metric');if(el)el.innerHTML=companyMetrics(cid).map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
+function handleExcel(file){if(!file)return;$('#file-name').textContent=file.name;const reader=new FileReader();reader.onload=e=>{try{workbook=XLSX.read(e.target.result,{type:'array',cellDates:true});$('#sheet-select').innerHTML=workbook.SheetNames.map(n=>`<option>${n}</option>`).join('');$('#import-config').classList.remove('hidden');updateSheetView()}catch(err){alert('Không đọc được file Excel: '+err.message)}};reader.readAsArrayBuffer(file)}
+function updateSheetView(){if(!workbook)return;const sheet=workbook.Sheets[$('#sheet-select').value||workbook.SheetNames[0]],headerRow=Math.max(1,Number($('#header-row').value)||1);const grid=XLSX.utils.sheet_to_json(sheet,{header:1,defval:null,raw:false});const headers=(grid[headerRow-1]||[]).map((x,i)=>String(x||`Cột ${i+1}`).trim());rawSheetRows=grid.slice(headerRow).filter(r=>r.some(v=>v!==null&&v!==''));const opts=headers.map((h,i)=>`<option value="${i}">${h}</option>`).join('');['wide-date-col','long-date-col','long-metric-col','long-series-col','long-value-col'].forEach(id=>{$('#'+id).innerHTML=opts});renderSeriesMapping(headers)}
+function renderSeriesMapping(headers){const dateIdx=Number($('#wide-date-col').value||0);$('#series-mapping').innerHTML=headers.map((h,i)=>i===dateIdx?'':`<div class="mapping-row"><code>${h}</code><input data-col="${i}" value="${h}" placeholder="Tên series"/><label><input data-ignore="${i}" type="checkbox"/> Bỏ qua</label></div>`).join('')}
+function parsePeriod(v){if(v==null||v==='')return null;if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}`;const s=String(v).trim();let m=s.match(/^(\d{4})[-\/.](\d{1,2})/);if(m)return `${m[1]}-${String(Number(m[2])).padStart(2,'0')}`;m=s.match(/^(\d{1,2})[-\/.](\d{4})$/);if(m)return `${m[2]}-${String(Number(m[1])).padStart(2,'0')}`;const d=new Date(s);return isNaN(d)?null:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+function parseNumber(v){if(v==null||v==='')return null;let s=String(v).trim().replace(/\s/g,'');if(/^[-+]?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s))s=s.replace(/\./g,'').replace(',','.');else if(/^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,'');else if(s.includes(',')&&!s.includes('.'))s=s.replace(',','.');const n=Number(s);return Number.isFinite(n)?n:null}
+function getOrCreateMetric(companyId,name){let m=state.metrics.find(x=>x.companyId===companyId&&x.name.trim().toLowerCase()===String(name).trim().toLowerCase());if(!m){const id=`${companyId}_${slugify(name)}_${Date.now()}`;m={id,companyId,name:String(name).trim(),unit:'',group:'Import Excel',order:companyMetrics(companyId).length+1};state.metrics.push(m)}return m}
+function buildPreview(){previewRows=[];const cid=$('#import-company').value,mode=$('#import-mode').value;if(mode==='wide'){const dateIdx=Number($('#wide-date-col').value),metric=state.metrics.find(m=>m.id===$('#wide-metric').value);if(!metric)return alert('Hãy tạo/chọn chỉ tiêu trước.');const maps=$$('#series-mapping input[data-col]').map(i=>({col:Number(i.dataset.col),series:i.value.trim()||`Series ${Number(i.dataset.col)+1}`,ignore:$(`[data-ignore="${i.dataset.col}"]`)?.checked})).filter(x=>!x.ignore);rawSheetRows.forEach(r=>{const period=parsePeriod(r[dateIdx]);if(!period)return;maps.forEach(mp=>{const value=parseNumber(r[mp.col]);if(value!=null)previewRows.push({companyId:cid,metricId:metric.id,metricName:metric.name,series:mp.series,period,value})})})}else{const di=Number($('#long-date-col').value),mi=Number($('#long-metric-col').value),si=Number($('#long-series-col').value),vi=Number($('#long-value-col').value);rawSheetRows.forEach(r=>{const period=parsePeriod(r[di]),value=parseNumber(r[vi]);if(!period||value==null||!r[mi])return;const metric=getOrCreateMetric(cid,r[mi]);previewRows.push({companyId:cid,metricId:metric.id,metricName:metric.name,series:String(r[si]||'Tổng').trim(),period,value})})}$('#preview-panel').classList.remove('hidden');$('#preview-summary').textContent=`${previewRows.length} điểm dữ liệu hợp lệ. Hiển thị tối đa 100 dòng đầu.`;$('#preview-body').innerHTML=previewRows.slice(0,100).map(r=>`<tr><td>${monthLabel(r.period)}</td><td>${r.metricName}</td><td>${r.series}</td><td>${fmtNumber(r.value)}</td></tr>`).join('')}
+function confirmImport(){if(!previewRows.length)return;let added=0,updated=0;previewRows.forEach(r=>{const idx=state.observations.findIndex(o=>o.metricId===r.metricId&&o.period===r.period&&(o.series||'Tổng')===r.series);const row={companyId:r.companyId,metricId:r.metricId,series:r.series,period:r.period,value:r.value};if(idx>=0){state.observations[idx]=row;updated++}else{state.observations.push(row);added++}});saveState();$('#import-status').textContent=`Đã import: ${added} mới, ${updated} cập nhật.`;renderDashboard();renderSettings()}
+$$('.nav-item').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));$('#goto-import').addEventListener('click',()=>setView('import'));$('#company-select').addEventListener('change',e=>{activeCompanyId=e.target.value;renderDashboard();renderCompany()});$('#dashboard-metric-select').addEventListener('change',renderQuickChart);$$('.segment').forEach(b=>b.addEventListener('click',()=>{$$('.segment').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeRange=b.dataset.range;renderCompany()}));$('#input-company-select').addEventListener('change',renderManualTable);$('#input-year-select').addEventListener('change',renderManualTable);$('#save-data').addEventListener('click',saveManual);$('#company-form').addEventListener('submit',addCompany);$('#metric-form').addEventListener('submit',addMetric);$('#excel-file').addEventListener('change',e=>handleExcel(e.target.files[0]));$('#sheet-select').addEventListener('change',updateSheetView);$('#header-row').addEventListener('change',updateSheetView);$('#import-company').addEventListener('change',refreshMetricSelect);$('#import-mode').addEventListener('change',e=>{$('#wide-mapping').classList.toggle('hidden',e.target.value!=='wide');$('#long-mapping').classList.toggle('hidden',e.target.value!=='long')});$('#wide-date-col').addEventListener('change',updateSheetView);$('#build-preview').addEventListener('click',buildPreview);$('#confirm-import').addEventListener('click',confirmImport);
+selectors();renderDashboard();
