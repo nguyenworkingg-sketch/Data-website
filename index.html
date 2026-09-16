@@ -4,147 +4,89 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Investment Data Hub</title>
-  <meta name="description" content="Hệ thống nhập dữ liệu doanh nghiệp và trực quan hóa time series." />
+  <meta name="description" content="Kho dữ liệu doanh nghiệp từ Excel và dashboard time series." />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">D</div>
-        <div>
-          <strong>Data Hub</strong>
-          <span>Investment research</span>
-        </div>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">D</div><div><strong>Data Hub</strong><span>Investment research</span></div></div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard">Tổng quan</button>
+      <button class="nav-item" data-view="company">Doanh nghiệp</button>
+      <button class="nav-item" data-view="import">Nạp Excel</button>
+      <button class="nav-item" data-view="manual">Nhập tay</button>
+      <button class="nav-item" data-view="settings">Cấu hình</button>
+    </nav>
+    <div class="sidebar-foot"><div class="mini-label">MVP DATA POOL</div><p>Excel là nguồn nhập. Data Pool là nguồn chuẩn để dựng dashboard.</p></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div><p class="eyebrow">PROJECT WEBSITE DATA</p><h1 id="page-title">Tổng quan dữ liệu</h1></div>
+      <div class="top-actions"><select id="company-select"></select><button id="goto-import" class="btn primary">Nạp Excel</button></div>
+    </header>
+
+    <section id="view-dashboard" class="view active-view">
+      <div id="summary-stats" class="stats-grid"></div>
+      <div class="panel"><div class="panel-head"><div><p class="eyebrow">DATA POOL</p><h2>Doanh nghiệp đang theo dõi</h2></div></div>
+        <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Doanh nghiệp</th><th>Ngành</th><th>Chỉ tiêu</th><th>Series</th><th>Kỳ mới nhất</th><th>Điểm dữ liệu</th></tr></thead><tbody id="company-status-body"></tbody></table></div>
       </div>
+      <div class="panel"><div class="panel-head"><div><p class="eyebrow">TIME SERIES</p><h2>Biểu đồ nhanh</h2></div><select id="dashboard-metric-select"></select></div><div class="chart-box tall"><canvas id="dashboard-chart"></canvas></div></div>
+    </section>
 
-      <nav class="nav" aria-label="Điều hướng chính">
-        <button class="nav-item active" data-view="dashboard">Tổng quan</button>
-        <button class="nav-item" data-view="company">Doanh nghiệp</button>
-        <button class="nav-item" data-view="input">Nhập dữ liệu</button>
-        <button class="nav-item" data-view="settings">Quản lý chỉ tiêu</button>
-      </nav>
+    <section id="view-company" class="view">
+      <div class="company-head"><div><p class="eyebrow">DOANH NGHIỆP</p><h2 id="company-title"></h2><p id="company-subtitle" class="muted"></p></div><div class="segmented"><button class="segment active" data-range="all">Tất cả</button><button class="segment" data-range="24">24T</button><button class="segment" data-range="12">12T</button></div></div>
+      <div id="charts-grid" class="charts-grid"></div>
+    </section>
 
-      <div class="sidebar-foot">
-        <div class="mini-label">MVP</div>
-        <p>Dữ liệu hiện lưu trên trình duyệt. Có thể chuyển sang Supabase sau khi chốt UX.</p>
+    <section id="view-import" class="view">
+      <div class="workflow"><div class="step active">1. Chọn file</div><div class="step">2. Chọn sheet</div><div class="step">3. Mapping</div><div class="step">4. Preview</div><div class="step">5. Import</div></div>
+      <div class="panel import-hero">
+        <div><p class="eyebrow">EXCEL → DATA POOL</p><h2>Nạp dữ liệu doanh nghiệp từ Excel</h2><p class="muted">Hỗ trợ .xlsx/.xls. File chỉ được đọc trong trình duyệt ở bản MVP này.</p></div>
+        <label class="upload-box"><input id="excel-file" type="file" accept=".xlsx,.xls,.xlsm"/><span>Kéo/chọn file Excel</span><small id="file-name">Chưa chọn file</small></label>
       </div>
-    </aside>
-
-    <main class="main">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">PROJECT WEBSITE DATA</p>
-          <h1 id="page-title">Tổng quan dữ liệu</h1>
+      <div id="import-config" class="panel hidden">
+        <div class="panel-head"><div><p class="eyebrow">CẤU HÌNH IMPORT</p><h2>Chọn cách đọc dữ liệu</h2></div></div>
+        <div class="form-grid">
+          <label>Doanh nghiệp<select id="import-company"></select></label>
+          <label>Sheet<select id="sheet-select"></select></label>
+          <label>Dạng dữ liệu<select id="import-mode"><option value="wide">Dạng ngang — mỗi cột là một series</option><option value="long">Dạng dọc — Date / Metric / Series / Value</option></select></label>
+          <label>Dòng tiêu đề<input id="header-row" type="number" min="1" value="1"/></label>
         </div>
-        <div class="top-actions">
-          <select id="company-select" aria-label="Chọn doanh nghiệp"></select>
-          <button id="goto-input" class="btn primary">Nhập tháng mới</button>
+        <div id="wide-mapping" class="mapping-box">
+          <div class="form-grid"><label>Cột thời gian<select id="wide-date-col"></select></label><label>Chỉ tiêu<select id="wide-metric"></select></label></div>
+          <p class="muted">Các cột còn lại sẽ trở thành Series. Ví dụ: NT1, NT2, Vũng Áng...</p>
+          <div id="series-mapping" class="mapping-list"></div>
         </div>
-      </header>
-
-      <section id="view-dashboard" class="view active-view">
-        <div class="stats-grid" id="summary-stats"></div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">TRẠNG THÁI DỮ LIỆU</p>
-              <h2>Doanh nghiệp đang theo dõi</h2>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Mã</th><th>Doanh nghiệp</th><th>Ngành</th><th>Chỉ tiêu</th><th>Kỳ mới nhất</th><th>Điểm dữ liệu</th></tr></thead>
-              <tbody id="company-status-body"></tbody>
-            </table>
-          </div>
+        <div id="long-mapping" class="mapping-box hidden">
+          <div class="form-grid"><label>Cột thời gian<select id="long-date-col"></select></label><label>Cột chỉ tiêu<select id="long-metric-col"></select></label><label>Cột series<select id="long-series-col"></select></label><label>Cột giá trị<select id="long-value-col"></select></label></div>
         </div>
+        <div class="actions-row"><button id="build-preview" class="btn primary">Tạo preview</button></div>
+      </div>
+      <div id="preview-panel" class="panel hidden">
+        <div class="panel-head"><div><p class="eyebrow">PREVIEW</p><h2>Dữ liệu chuẩn hóa trước khi nhập</h2><p id="preview-summary" class="muted"></p></div><button id="confirm-import" class="btn primary">Xác nhận import</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Kỳ</th><th>Chỉ tiêu</th><th>Series</th><th>Giá trị</th></tr></thead><tbody id="preview-body"></tbody></table></div><div id="import-status" class="save-status"></div>
+      </div>
+    </section>
 
-        <div class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">TIME SERIES</p>
-              <h2>Biểu đồ nhanh</h2>
-            </div>
-            <select id="dashboard-metric-select"></select>
-          </div>
-          <div class="chart-box tall"><canvas id="dashboard-chart"></canvas></div>
-        </div>
-      </section>
+    <section id="view-manual" class="view">
+      <div class="panel"><div class="panel-head input-head"><div><p class="eyebrow">NHẬP TAY</p><h2>Bổ sung nhanh dữ liệu tháng</h2><p class="muted">Dùng cho số lẻ. Với dữ liệu lớn nên dùng Nạp Excel.</p></div><div class="input-controls"><select id="input-company-select"></select><select id="input-year-select"></select><button id="save-data" class="btn primary">Lưu</button></div></div>
+        <div class="table-wrap data-entry-wrap"><table class="data-entry-table"><thead id="input-head-row"></thead><tbody id="input-body"></tbody></table></div><div id="save-status" class="save-status"></div>
+      </div>
+    </section>
 
-      <section id="view-company" class="view">
-        <div class="company-head">
-          <div>
-            <p class="eyebrow">DOANH NGHIỆP</p>
-            <h2 id="company-title">FPT</h2>
-            <p class="muted" id="company-subtitle"></p>
-          </div>
-          <div class="segmented">
-            <button class="segment active" data-range="all">Tất cả</button>
-            <button class="segment" data-range="24">24T</button>
-            <button class="segment" data-range="12">12T</button>
-          </div>
-        </div>
-        <div id="charts-grid" class="charts-grid"></div>
-      </section>
-
-      <section id="view-input" class="view">
-        <div class="panel">
-          <div class="panel-head input-head">
-            <div>
-              <p class="eyebrow">NHẬP DỮ LIỆU</p>
-              <h2>Bảng nhập theo tháng</h2>
-              <p class="muted">Có thể copy một vùng từ Excel và paste trực tiếp vào bảng.</p>
-            </div>
-            <div class="input-controls">
-              <select id="input-company-select"></select>
-              <select id="input-year-select"></select>
-              <button id="save-data" class="btn primary">Lưu dữ liệu</button>
-            </div>
-          </div>
-          <div class="table-wrap data-entry-wrap">
-            <table class="data-entry-table">
-              <thead id="input-head-row"></thead>
-              <tbody id="input-body"></tbody>
-            </table>
-          </div>
-          <div id="save-status" class="save-status" aria-live="polite"></div>
-        </div>
-      </section>
-
-      <section id="view-settings" class="view">
-        <div class="settings-grid">
-          <div class="panel">
-            <div class="panel-head"><div><p class="eyebrow">DOANH NGHIỆP</p><h2>Thêm doanh nghiệp</h2></div></div>
-            <form id="company-form" class="stack-form">
-              <label>Mã cổ phiếu<input id="new-ticker" required maxlength="12" placeholder="VD: POW" /></label>
-              <label>Tên doanh nghiệp<input id="new-company-name" required placeholder="VD: PV Power" /></label>
-              <label>Ngành<input id="new-sector" placeholder="VD: Điện" /></label>
-              <button class="btn primary" type="submit">Thêm doanh nghiệp</button>
-            </form>
-          </div>
-
-          <div class="panel">
-            <div class="panel-head"><div><p class="eyebrow">CHỈ TIÊU</p><h2>Thêm chỉ tiêu</h2></div></div>
-            <form id="metric-form" class="stack-form">
-              <label>Doanh nghiệp<select id="metric-company-select"></select></label>
-              <label>Tên chỉ tiêu<input id="new-metric-name" required placeholder="VD: Sản lượng điện" /></label>
-              <label>Đơn vị<input id="new-metric-unit" placeholder="VD: triệu kWh" /></label>
-              <label>Nhóm<input id="new-metric-group" placeholder="VD: Vận hành" /></label>
-              <button class="btn primary" type="submit">Thêm chỉ tiêu</button>
-            </form>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><div><p class="eyebrow">CẤU TRÚC HIỆN TẠI</p><h2>Danh sách chỉ tiêu</h2></div></div>
-          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Chỉ tiêu</th><th>Đơn vị</th><th>Nhóm</th></tr></thead><tbody id="metric-list-body"></tbody></table></div>
-        </div>
-      </section>
-    </main>
-  </div>
+    <section id="view-settings" class="view">
+      <div class="settings-grid">
+        <div class="panel"><div class="panel-head"><div><p class="eyebrow">DOANH NGHIỆP</p><h2>Thêm doanh nghiệp</h2></div></div><form id="company-form" class="stack-form"><label>Mã cổ phiếu<input id="new-ticker" required maxlength="12" placeholder="VD: POW"/></label><label>Tên doanh nghiệp<input id="new-company-name" required placeholder="VD: PV Power"/></label><label>Ngành<input id="new-sector" placeholder="VD: Điện"/></label><button class="btn primary">Thêm doanh nghiệp</button></form></div>
+        <div class="panel"><div class="panel-head"><div><p class="eyebrow">CHỈ TIÊU</p><h2>Thêm chỉ tiêu</h2></div></div><form id="metric-form" class="stack-form"><label>Doanh nghiệp<select id="metric-company-select"></select></label><label>Tên chỉ tiêu<input id="new-metric-name" required placeholder="VD: Sản lượng điện"/></label><label>Đơn vị<input id="new-metric-unit" placeholder="VD: triệu kWh"/></label><label>Nhóm<input id="new-metric-group" placeholder="VD: Vận hành"/></label><button class="btn primary">Thêm chỉ tiêu</button></form></div>
+      </div>
+      <div class="panel"><div class="panel-head"><div><p class="eyebrow">CẤU TRÚC</p><h2>Danh sách chỉ tiêu</h2></div></div><div class="table-wrap"><table><thead><tr><th>Mã</th><th>Chỉ tiêu</th><th>Đơn vị</th><th>Nhóm</th><th>Series đã có</th></tr></thead><tbody id="metric-list-body"></tbody></table></div></div>
+    </section>
+  </main>
+</div>
 </body>
 </html>
