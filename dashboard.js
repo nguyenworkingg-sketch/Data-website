@@ -17,6 +17,42 @@ function parsePOWRaw(rows){let year=null,metric=null;const pts={generation:[],qc
 const periods=[...new Set([...pts.generation,...pts.qc,...pts.revenue].map(x=>x.period))].sort();const labels=periods.map(monthLabel);return{title:'POW — PV Power',subtitle:'Vận hành theo nhà máy · Sản lượng, Qc và doanh thu',latest:labels.at(-1)||'—',months:labels,generation:{series:alignedSeries(pts.generation,periods)},qc:{series:alignedSeries(pts.qc,periods)},revenue:{series:alignedSeries(pts.revenue,periods)}}}
 
 function rowByLabel(rows,label,start=0){for(let i=start;i<rows.length;i++)if(String(rows[i]?.[0]||'').trim()===label)return{i,row:rows[i]};return null}
+function fptMonthlyColumns(rows){
+  const yrow=rows?.[0]||[],mrow=rows?.[1]||[];const cols=[];let year=null;
+  for(let c=0;c<Math.max(yrow.length,mrow.length);c++){
+    const ys=String(yrow[c]??'').trim(),ms=String(mrow[c]??'').trim();
+    if(/^20\d{2}$/.test(ys))year=Number(ys);
+    if(year&&/^(?:[1-9]|1[0-2])$/.test(ms))cols.push({c,year,month:Number(ms),period:`${year}-${String(Number(ms)).padStart(2,'0')}`});
+  }
+  return cols;
+}
+function fptBlockRows(rows,anchorLabel,seriesNames){
+  const a=rowByLabel(rows,anchorLabel);if(!a)return null;
+  const found={Tổng:a.row};
+  for(const name of seriesNames){
+    for(let i=a.i+1;i<Math.min(rows.length,a.i+18);i++){
+      if(String(rows[i]?.[0]||'').trim()===name){found[name]=rows[i];break}
+    }
+  }
+  return found;
+}
+function fptMonthlyTable(rows,anchorLabel,seriesNames){
+  const cols=fptMonthlyColumns(rows),block=fptBlockRows(rows,anchorLabel,seriesNames);if(!block||!cols.length)return null;
+  const years=[...new Set(cols.map(x=>x.year))].sort((a,b)=>b-a);
+  const currentYear=years.find(y=>cols.some(x=>x.year===y&&Object.values(block).some(r=>nval(r?.[x.c])!=null)))||years[0];
+  const current=cols.filter(x=>x.year===currentYear&&Object.values(block).some(r=>nval(r?.[x.c])!=null));
+  const periods=current.map(x=>x.period),months=current.map(x=>`T${x.month}`);
+  const series={};
+  for(const [name,row] of Object.entries(block)){
+    const values=current.map(x=>nval(row?.[x.c]));
+    const yoy=current.map(x=>{
+      const pc=cols.find(z=>z.year===x.year-1&&z.month===x.month),pv=pc?nval(row?.[pc.c]):null,v=nval(row?.[x.c]);
+      return v!=null&&pv!=null&&pv!==0?pct(v,pv):null;
+    });
+    series[name]={values,yoy};
+  }
+  return{year:currentYear,periods,months,series};
+}
 function parseFPTRaw(rows){const h=rows?.[0]||[],currentYear=new Date().getFullYear();const annual=[];for(let c=1;c<h.length;c++){const s=String(h[c]||'').trim();if(/^20\d{2}$/.test(s))annual.push({c,year:Number(s)});else if(annual.length)break}const full=annual.filter(x=>x.year<currentYear);const revR=rowByLabel(rows,'Doanh thu lũy kế (tỷ)');const pbtR=rowByLabel(rows,'LNTT lũy kế (tỷ)');if(!revR||!pbtR)throw new Error('FPT: không tìm thấy Doanh thu/LNTT lũy kế');const segNames=['Công nghệ','Nước ngoài','Chuyển đổi số','Trong nước','Viễn thông','Giáo dục và đầu tư khác'];const segRows={};for(const name of segNames){const hit=rowByLabel(rows,name,revR.i+1);if(hit&&hit.i<pbtR.i)segRows[name]=hit.row}const cur=annual.find(x=>x.year===currentYear);const years=full.map(x=>String(x.year));const vals=(row,cols)=>cols.map(x=>nval(row?.[x.c]));const ytd=(row)=>cur?nval(row?.[cur.c]):null;const monthlyRevenue=fptMonthlyTable(rows,'Doanh thu (tỷ)',['Công nghệ','Nước ngoài','Chuyển đổi số','Trong nước','Viễn thông','Giáo dục và đầu tư khác']);const monthlyPbt=fptMonthlyTable(rows,'LNTT (tỷ)',['Công nghệ','Nước ngoài','Trong nước','Viễn thông','Giáo dục và đầu tư khác']);const monthlySigning=fptMonthlyTable(rows,'Doanh thu ký mới',[]);return{title:'FPT — FPT Corporation',subtitle:`Tăng trưởng theo năm · dữ liệu ${currentYear} lũy kế`,years,revenue:vals(revR.row,full),pbt:vals(pbtR.row,full),segments:Object.fromEntries(Object.entries(segRows).map(([k,r])=>[k,vals(r,full)])),ytd2026:{year:currentYear,revenue:ytd(revR.row),technology:ytd(segRows['Công nghệ']),overseas:ytd(segRows['Nước ngoài']),pbt:ytd(pbtR.row)},monthlyRevenue,monthlyPbt,monthlySigning}}
 
 function reeLabel(row){return String(row?.[1]||'').trim()}
