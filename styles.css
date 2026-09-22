@@ -3,3 +3,15 @@
 @media(max-width:1000px){.stats-grid{grid-template-columns:repeat(2,1fr)}.charts-grid{grid-template-columns:1fr}.info-panel{align-items:flex-start;flex-direction:column}.live-actions{justify-content:flex-start}}
 @media(max-width:760px){.app-shell{grid-template-columns:1fr}.sidebar{padding:14px}.brand{margin-bottom:10px}.side-label,.sidebar-foot{display:none}.company-nav{grid-template-columns:repeat(3,1fr)}.nav-item{text-align:center}.nav-item span{display:none}.main{padding:18px}.topbar{flex-direction:column}.source-state{white-space:normal}.stats-grid{grid-template-columns:1fr 1fr}.live-actions{width:100%}}
 @media(max-width:480px){.stats-grid{grid-template-columns:1fr}.main{padding:14px}.chart-box{height:270px}h1{font-size:24px}.live-actions .btn{flex:1}}
+.fpt-table-panel{grid-column:1/-1;padding:17px;overflow:hidden}
+.fpt-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px}
+.fpt-month-table{width:100%;border-collapse:separate;border-spacing:0;min-width:920px;font-size:11px}
+.fpt-month-table th,.fpt-month-table td{padding:10px 11px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:right;vertical-align:middle;background:#fff}
+.fpt-month-table thead th{position:sticky;top:0;background:#f7f8fa;color:#5d6674;font-weight:800;z-index:1}
+.fpt-month-table th:first-child{position:sticky;left:0;text-align:left;min-width:190px;background:#fbfbfc;z-index:2}
+.fpt-month-table thead th:first-child{z-index:3}
+.fpt-month-table tr:last-child th,.fpt-month-table tr:last-child td{border-bottom:0}
+.fpt-month-table th:last-child,.fpt-month-table td:last-child{border-right:0}
+.fpt-month-table tbody tr:hover td,.fpt-month-table tbody tr:hover th{background:#fafbfc}
+.fpt-cell-value{font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+.fpt-cell-growth{font-size:10px;margin-top:3px;font-weight:700}
